@@ -1,0 +1,274 @@
+#include <iostream>
+#include <string>
+#include <map>
+#include <algorithm>
+#include <vector>
+
+template <typename myT> void printVector(const std::vector<myT> &myVector);
+void printMap(const std::map<const std::string, int> &myMap);
+bool evaluateBooleanExpression(const std::vector<std::string> &userInput);
+std::pair<std::map<const std::string, int>::iterator, bool> createVariable (std::map<const std::string, int> &variableMap, std::vector<std::string> &userInput);
+void variableCheck (std::vector<std::string> &userInput, std::map<const std::string, int> &variableMap);
+std::vector<std::string> populateUserInput();
+
+enum BOOLVALUE {F = 0, T = 1, OPENBRACKET = 3, CLOSEBRACKET = 4, AND = 5, OR = 6, NOT = 7};
+enum {FALSE = 0, TRUE = 1} DEBUG = FALSE;
+
+int main(int argc, char *argv[]){
+    std::vector<std::string> userInput;
+    std::map<const std::string, int> variableMap;
+
+    //std::find_first_not_of(userInput, "TFtf!^Vv")
+    //Exception handling.
+
+    while (true){
+        userInput = populateUserInput();
+        
+        auto foundIterator = std::find(userInput.cbegin(), userInput.cend(), "=");
+        bool found = (foundIterator != userInput.cend());
+
+        //let mutisya = f ^ t v t
+    
+
+        if (userInput[0] == "let" && userInput[2] == "="){
+            auto createState = createVariable(variableMap, userInput);
+
+            if (DEBUG) createState.second ? std::cout << "success!" : std::cout << "failure!";
+
+            if (DEBUG){
+                std::cout << "\n" << createState.first->first << ": " << createState.first->second << "\n" << std::flush;
+                printMap(variableMap);
+            }
+            continue;
+        }
+
+
+        if (userInput[0] == "halt"){
+            std::cout << "Program terminated." << "\n" << std::flush;
+            break;
+        }
+
+
+        if (found){
+            variableCheck (userInput, variableMap);
+            std::vector<std::string> leftHandSide((userInput.cbegin()), foundIterator);
+            printVector (leftHandSide);
+            std::vector<std::string> rightHandSide((foundIterator + 1), userInput.cend());
+            printVector (rightHandSide);
+            int LHS, RHS;
+            LHS = evaluateBooleanExpression(leftHandSide);
+            RHS = evaluateBooleanExpression(rightHandSide);
+
+            if (DEBUG) std:: cout << LHS << " = " << RHS << std::endl;
+
+            (LHS == RHS) ? std::cout << T : std::cout << F;
+        } else {
+            variableCheck (userInput, variableMap);
+            std::cout << evaluateBooleanExpression(userInput) << std::endl;
+        }
+    }
+
+    return 0;
+}
+
+
+std::vector<std::string> populateUserInput(){
+    std::vector<std::string> userInput;
+    std::string inputBufferString;
+
+    std::cout << "Enter boolean expression: ";
+    while (std::cin >> inputBufferString){
+        userInput.push_back(inputBufferString);
+    }
+
+    std::cin.clear();
+    std::cin.sync();
+
+    return userInput;
+}
+
+
+void variableCheck (std::vector<std::string> &userInput, std::map<const std::string, int> &variableMap){ //I need to put const for the map
+
+    for(auto traversalIterator = userInput.begin() ; traversalIterator != userInput.end() ; ++traversalIterator){
+        if (*traversalIterator == "t" || *traversalIterator == "T" || *traversalIterator == "f" || *traversalIterator == "F" || *traversalIterator == "^" ||
+            *traversalIterator == "v" || *traversalIterator == "V" || *traversalIterator == "!" || *traversalIterator == "(" || *traversalIterator == ")" ){
+            continue;
+        }
+
+        if (variableMap.find(*traversalIterator) != variableMap.end()){
+            *traversalIterator = (variableMap.at(*traversalIterator) == 0) ? "F" : "T";
+        }
+    }
+
+
+    if (DEBUG) {
+        std::cout << std::endl;
+        std::cout << "Variable check function output: "; 
+        printVector(userInput);
+    }
+}
+
+
+std::pair<std::map<const std::string, int>::iterator, bool> createVariable (std::map<const std::string, int> &variableMap, std::vector<std::string> &userInput){
+    std::vector<std::string> operand(userInput.cbegin() + 3, userInput.cend());
+    variableCheck(operand, variableMap);
+    int value = evaluateBooleanExpression(operand);
+    std::string key = userInput[1];
+
+    return variableMap.insert({key, value});
+}
+
+
+bool evaluateBooleanExpression(const std::vector<std::string> &userInput){
+    std::vector<int> processInput;
+    int buffer = 0;
+    bool bracket = false;
+
+    //PLEASE NOTE THAT YOU DONT HAVE TO CHANGE ANYTHING TO ACCEPT CHARACTERS! JUST CHANGE THE VECTOR SINCE THE PROCESS INPUT WILL READ FROM IT WITHOUT ANY REGARD FOR SPACES.
+    for (auto element : userInput){
+        //When you switch to characters here we can use a switch case statement which is much faster.
+
+        if (element == "T" || element == "t") processInput.push_back(T);
+        else if (element == "F" || element == "f") processInput.push_back(F);
+        else if (element == "^") processInput.push_back(AND);
+        else if (element == "v" || element == "V") processInput.push_back(OR);
+        else if (element == "!") processInput.push_back(NOT);
+        else if (element == "(") processInput.push_back(OPENBRACKET);
+        else if (element == ")") processInput.push_back(CLOSEBRACKET);
+    }
+
+    if (DEBUG) printVector (processInput);
+
+
+    auto traversalIterator = processInput.begin();
+
+    while (traversalIterator != processInput.end()){
+        if(*traversalIterator == OPENBRACKET){
+            traversalIterator = processInput.erase(traversalIterator);
+            ++traversalIterator;
+            bracket = true;
+
+        }else if(*traversalIterator == CLOSEBRACKET){
+            bracket = false;
+            traversalIterator = processInput.erase(traversalIterator);
+            if ((traversalIterator) == processInput.end()) break;         
+
+        }else if (bracket == true){
+            if (*(traversalIterator) == AND){
+                if (*(traversalIterator + 1) == NOT){
+                    ++traversalIterator;
+                    traversalIterator = processInput.erase(traversalIterator);
+                    traversalIterator = processInput.insert(traversalIterator, !(*traversalIterator));
+                    ++traversalIterator;
+                    traversalIterator = processInput.erase(traversalIterator); 
+                    traversalIterator -= 2;
+                }
+
+                buffer = *(traversalIterator - 1) & *(traversalIterator + 1);
+                traversalIterator = processInput.insert(traversalIterator - 1, buffer);
+                ++traversalIterator;
+                traversalIterator = processInput.erase(traversalIterator);
+                traversalIterator = processInput.erase(traversalIterator);
+                traversalIterator = processInput.erase(traversalIterator);
+
+            } else if (*(traversalIterator) == OR){
+                if (*(traversalIterator + 1) == NOT){
+                    traversalIterator += 1;
+                    traversalIterator = processInput.erase(traversalIterator);
+                    traversalIterator = processInput.insert(traversalIterator, !(*traversalIterator));
+                    ++traversalIterator;
+                    traversalIterator = processInput.erase(traversalIterator); 
+                    traversalIterator -= 2;
+                }
+
+                buffer = *(traversalIterator - 1) | *(traversalIterator + 1);
+                traversalIterator = processInput.insert(traversalIterator - 1, buffer);
+                ++traversalIterator;
+                traversalIterator = processInput.erase(traversalIterator);
+                traversalIterator = processInput.erase(traversalIterator);
+                traversalIterator = processInput.erase(traversalIterator);
+
+            } else if (*(traversalIterator - 1) == NOT){
+                traversalIterator = processInput.erase(traversalIterator - 1);
+                traversalIterator = processInput.insert(traversalIterator, !(*traversalIterator));
+                ++traversalIterator;
+                traversalIterator = processInput.erase(traversalIterator); 
+            }
+
+        }else if (bracket == false){
+            ++traversalIterator;
+        }
+    }
+
+    if (DEBUG) printVector(processInput);
+
+    traversalIterator = processInput.begin();
+
+    while (traversalIterator != processInput.end()){
+        if (*traversalIterator == NOT){
+            traversalIterator = processInput.erase(traversalIterator);
+            traversalIterator = processInput.insert(traversalIterator, !(*traversalIterator));
+            ++traversalIterator;
+            traversalIterator = processInput.erase(traversalIterator); 
+        } else {
+            ++traversalIterator;
+        }
+    }
+    if (DEBUG) printVector(processInput);
+
+
+    traversalIterator = processInput.end() - 1;
+
+    while (traversalIterator != processInput.begin()){
+        if (*(traversalIterator - 1) == AND){    
+            buffer = (*traversalIterator & *(traversalIterator - 2));
+        }
+        else if (*(traversalIterator - 1) == OR){
+            buffer = (*traversalIterator | *(traversalIterator - 2)); 
+        }
+            processInput.pop_back();
+            processInput.pop_back();
+            processInput.pop_back();
+            processInput.push_back(buffer);
+            traversalIterator = processInput.end() - 1;
+            
+    }
+    if (DEBUG) printVector(processInput);
+
+    return processInput.back();
+}
+
+
+template <typename myT> 
+void printVector(const std::vector<myT> &myVector){
+    for (auto element : myVector){
+        std::cout << element << " ";
+    }
+    std::cout << std::endl;
+}
+
+void printMap(const std::map<const std::string, int> &myMap){
+    std::cout << "\n";
+    for (auto element : myMap){
+        std::cout << element.first << ": " << element.second << "\n";
+    }
+    std::cout << std::endl;
+}
+
+
+/*
+Sequential containers
+Vector
+Deque
+String
+List
+foward_list
+Array
+
+Associative containers
+Map
+Set
+Multimap
+multiset
+*/
